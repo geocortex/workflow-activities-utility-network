@@ -11,6 +11,7 @@ import {
     rotate,
     cut,
     planarLength,
+    nearestCoordinate,
 } from "@arcgis/core/geometry/geometryEngineAsync";
 import * as Projection from "@arcgis/core/geometry/projection";
 import UtilityNetwork from "@arcgis/core/networks/UtilityNetwork";
@@ -162,16 +163,20 @@ export function getValue(obj: Record<string, number>, prop: string): any {
     }
     return undefined;
 }
+
 export async function splitPolyline(sourceLine: Polyline, flagGeom: Point): Promise<Polyline[]> {
 
     let splitLines: Polyline[] = [];
-    const line = Polyline.fromJSON(sourceLine.toJSON());
+    const line = sourceLine.clone();
     const projectedLine = Projection.project(
         line,
         flagGeom.spatialReference
     ) as Polyline;
-
-    const buffer = (await geodesicBuffer(flagGeom, 20, "feet")) as Polygon;
+    //snap to the line
+    const pointIntersection = await getPolylineIntersection(projectedLine, flagGeom);
+    //buffer the snapped line to get a surrounding intersecting polygon
+    const buffer = (await geodesicBuffer(pointIntersection, 20, "feet")) as Polygon;
+    //intesect to get a snippet of the line.  This is used to cut the line after rotating in by 90 degrees.
     const polyIntersection = await intersect(projectedLine, buffer);
     if (polyIntersection) {
         const rotated = await rotate(polyIntersection, 90);
@@ -186,16 +191,10 @@ export async function splitPolyline(sourceLine: Polyline, flagGeom: Point): Prom
 
 export async function getPolylineIntersection(sourceLine: Polyline, flagGeom: Point): Promise<Point> {
     let intersectionPoint;
-    const splitGeom = await splitPolyline(sourceLine, flagGeom);
-    if (splitGeom.length > 0) {
-        const vertice = splitGeom[1].paths[0][0];
-        intersectionPoint = new Point( {
-            x: vertice[0], 
-            y: vertice[1], 
-            spatialReference: splitGeom[1].spatialReference 
-        });
+    const nearestPoint = await nearestCoordinate(sourceLine, flagGeom);
+    if(nearestPoint?.coordinate) {
+        intersectionPoint = await intersect(sourceLine, nearestPoint.coordinate);
     }
-
     return intersectionPoint;
 }
 
