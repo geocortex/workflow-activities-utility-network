@@ -156,17 +156,22 @@ export class SelectNetworkGraphics implements IActivityHandler {
         const networkGraphics: NetworkGraphic[] = [];
 
         for (const queriedGraphic of queriedGraphics) {
-            const percAlong = await getPercentageAlong(
-                queriedGraphic.geometry,
-                hitPoint
-            );
+            let percAlong = 0.0;
             let terminalIds: number[] | undefined = undefined;
             if(queriedGraphic.geometry) {
+                percAlong = await getPercentageAlong(
+                    queriedGraphic.geometry,
+                    hitPoint
+                );
                 if(queriedGraphic.geometry.type === 'point') {
                     terminalIds = getTerminalIds(queriedGraphic, utilityNetwork);
                     hitPoint = queriedGraphic.geometry as Point;
                 } else if(queriedGraphic.geometry.type === 'polyline'){
-                    hitPoint = await getPolylineIntersection(queriedGraphic.geometry as Polyline, hitPoint);
+                    const snappedPoint = await getPolylineIntersection(queriedGraphic.geometry as Polyline, hitPoint);
+                    if(snappedPoint){
+                        hitPoint = snappedPoint;
+                    }
+
                 }
             }
             
